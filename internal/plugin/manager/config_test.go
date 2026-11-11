@@ -5,7 +5,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/kliuchnikovv/keystone/internal/plugin"
+	"github.com/kliuchnikovv/keystone-go/internal/plugin"
 )
 
 func TestValidateConfig_NoSchemaAcceptsAnything(t *testing.T) {

@@ -10,7 +10,7 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/kliuchnikovv/keystone/internal/plugin"
+	"github.com/kliuchnikovv/keystone-go/internal/plugin"
 )
 
 // packedPaths are the subtrees keystone-plugin packs into the tarball.

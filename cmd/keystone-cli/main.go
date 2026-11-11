@@ -12,7 +12,7 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/kliuchnikovv/keystone/cmd/keystone-cli/internal/cli"
+	"github.com/kliuchnikovv/keystone-go/cmd/keystone-cli/internal/cli"
 )
 
 const usage = `keystone — CLI for the keystone daemon

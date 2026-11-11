@@ -5,7 +5,7 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/kliuchnikovv/keystone/internal/plugin/registry"
+	"github.com/kliuchnikovv/keystone-go/internal/plugin/registry"
 )
 
 func TestDiscover_EmptyRoot(t *testing.T) {

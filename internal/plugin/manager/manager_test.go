@@ -11,9 +11,9 @@ import (
 
 	"github.com/kliuchnikovv/keystone-api/sidecar"
 
-	pluginmf "github.com/kliuchnikovv/keystone/internal/plugin"
-	"github.com/kliuchnikovv/keystone/internal/plugin/manager"
-	"github.com/kliuchnikovv/keystone/internal/plugin/registry"
+	pluginmf "github.com/kliuchnikovv/keystone-go/internal/plugin"
+	"github.com/kliuchnikovv/keystone-go/internal/plugin/manager"
+	"github.com/kliuchnikovv/keystone-go/internal/plugin/registry"
 )
 
 // TestMain doubles as the stub plugin binary — see the supervisor package

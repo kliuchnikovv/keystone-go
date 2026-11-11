@@ -14,7 +14,7 @@ metadata:
     thermostats and Matter 1.4 cameras (WebRTC).
   maintainer: keystone team <core@keystone.io>
   license: Apache-2.0
-  homepage: https://github.com/kliuchnikovv/keystone/tree/master/plugins/matter
+  homepage: https://github.com/kliuchnikovv/keystone-go/tree/master/plugins/matter
   category: transport
   tags: [matter, thread, wifi, official]
   trustTier: core

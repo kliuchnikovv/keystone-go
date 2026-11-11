@@ -16,7 +16,7 @@ import (
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
 
-	pb "github.com/kliuchnikovv/keystone/gen/go/keystone/v1"
+	pb "github.com/kliuchnikovv/keystone-go/gen/go/keystone/v1"
 )
 
 func main() {

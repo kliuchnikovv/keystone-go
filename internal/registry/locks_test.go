@@ -6,7 +6,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/kliuchnikovv/keystone/internal/domain"
+	"github.com/kliuchnikovv/keystone-go/internal/domain"
 )
 
 // TestKeyedLock_SerialisesSameKey verifies that two goroutines contending on

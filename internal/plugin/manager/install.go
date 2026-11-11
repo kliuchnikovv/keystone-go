@@ -7,8 +7,8 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/kliuchnikovv/keystone/internal/plugin/pack"
-	"github.com/kliuchnikovv/keystone/internal/plugin/store"
+	"github.com/kliuchnikovv/keystone-go/internal/plugin/pack"
+	"github.com/kliuchnikovv/keystone-go/internal/plugin/store"
 )
 
 // InstallRequest is what the /plugins/install HTTP handler passes in.

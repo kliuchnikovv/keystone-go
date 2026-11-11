@@ -12,8 +12,8 @@ import (
 
 	"github.com/kliuchnikovv/keystone-api/sidecar"
 
-	"github.com/kliuchnikovv/keystone/internal/adapters/matter"
-	"github.com/kliuchnikovv/keystone/plugins/sdk"
+	"github.com/kliuchnikovv/keystone-go/internal/adapters/matter"
+	"github.com/kliuchnikovv/keystone-go/plugins/sdk"
 )
 
 // Version is stamped into hello so the manager's status output is

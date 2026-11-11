@@ -8,8 +8,8 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/kliuchnikovv/keystone/internal/domain"
-	"github.com/kliuchnikovv/keystone/internal/ports"
+	"github.com/kliuchnikovv/keystone-go/internal/domain"
+	"github.com/kliuchnikovv/keystone-go/internal/ports"
 )
 
 // Matter cluster identifiers. We keep them as strings because that is what

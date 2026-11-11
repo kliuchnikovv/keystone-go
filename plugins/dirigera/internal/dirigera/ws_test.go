@@ -12,8 +12,8 @@ import (
 
 	"github.com/coder/websocket"
 
-	"github.com/kliuchnikovv/keystone/internal/domain"
-	"github.com/kliuchnikovv/keystone/internal/ports"
+	"github.com/kliuchnikovv/keystone-go/internal/domain"
+	"github.com/kliuchnikovv/keystone-go/internal/ports"
 )
 
 func TestDeriveWSURL(t *testing.T) {

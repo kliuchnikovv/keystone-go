@@ -37,7 +37,7 @@ yarn -v      # 1.22+ или 4.x+
 Один терминал:
 
 ```sh
-cd ~/go/src/github.com/kliuchnikovv/keystone
+cd ~/go/src/github.com/kliuchnikovv/keystone-go
 ./bin/keystone        # или: go run ./cmd/keystone
 ```
 
@@ -74,7 +74,7 @@ http listening         addr=:7777
 **Терминал 1 — matter sidecar (нативно, важно):**
 
 ```sh
-cd ~/go/src/github.com/kliuchnikovv/keystone/sidecars/matter-server
+cd ~/go/src/github.com/kliuchnikovv/keystone-go/sidecars/matter-server
 npm install               # если ещё не ставил
 node dist/index.js        # или: npm start
 ```
@@ -104,7 +104,7 @@ KEYSTONE_MATTER_BLE=true node dist/index.js
 **Терминал 2 — keystone:**
 
 ```sh
-cd ~/go/src/github.com/kliuchnikovv/keystone
+cd ~/go/src/github.com/kliuchnikovv/keystone-go
 ./bin/keystone -matter-sidecar ws://localhost:5580
 ```
 
@@ -118,7 +118,7 @@ matter adapter started      sidecar=ws://localhost:5580
 **Терминал 3 — React MVP (опционально):**
 
 ```sh
-cd ~/go/src/github.com/kliuchnikovv/keystone/apps/web
+cd ~/go/src/github.com/kliuchnikovv/keystone-go/apps/web
 yarn install     # если node_modules пустая
 yarn dev
 ```
@@ -149,7 +149,7 @@ yarn dev
 ### 4.1 Запуск
 
 ```sh
-cd ~/go/src/github.com/kliuchnikovv/keystone
+cd ~/go/src/github.com/kliuchnikovv/keystone-go
 docker compose up -d
 docker compose logs -f keystone matter-sidecar
 ```
@@ -204,7 +204,7 @@ lsof -iTCP:5173 -sTCP:LISTEN     # должен быть node (vite)
 Устаревший бинарь без retry-логики. Пересобери:
 
 ```sh
-cd ~/go/src/github.com/kliuchnikovv/keystone
+cd ~/go/src/github.com/kliuchnikovv/keystone-go
 go build -o bin/keystone ./cmd/keystone
 ```
 
@@ -239,7 +239,7 @@ Discovery не может найти устройство. Возможные п
 Полная зачистка данных без переустановки:
 
 ```sh
-cd ~/go/src/github.com/kliuchnikovv/keystone
+cd ~/go/src/github.com/kliuchnikovv/keystone-go
 
 # keystone data — устройства, правила, история
 rm -rf keystone-data

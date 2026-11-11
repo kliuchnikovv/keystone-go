@@ -6,8 +6,8 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/kliuchnikovv/keystone/internal/plugin"
-	"github.com/kliuchnikovv/keystone/internal/plugin/supervisor"
+	"github.com/kliuchnikovv/keystone-go/internal/plugin"
+	"github.com/kliuchnikovv/keystone-go/internal/plugin/supervisor"
 )
 
 // dataDirFor returns the persistent data directory for a plugin. Defaults

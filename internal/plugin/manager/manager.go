@@ -17,10 +17,10 @@ import (
 	"sync"
 
 	"github.com/kliuchnikovv/keystone-api/sidecar"
-	"github.com/kliuchnikovv/keystone/internal/plugin"
-	"github.com/kliuchnikovv/keystone/internal/plugin/registry"
-	"github.com/kliuchnikovv/keystone/internal/plugin/store"
-	"github.com/kliuchnikovv/keystone/internal/plugin/supervisor"
+	"github.com/kliuchnikovv/keystone-go/internal/plugin"
+	"github.com/kliuchnikovv/keystone-go/internal/plugin/registry"
+	"github.com/kliuchnikovv/keystone-go/internal/plugin/store"
+	"github.com/kliuchnikovv/keystone-go/internal/plugin/supervisor"
 )
 
 // State is a plugin's lifecycle position. Values line up with the

@@ -6,8 +6,8 @@ import (
 	"sync"
 	"time"
 
-	"github.com/kliuchnikovv/keystone/internal/domain"
-	"github.com/kliuchnikovv/keystone/internal/ports"
+	"github.com/kliuchnikovv/keystone-go/internal/domain"
+	"github.com/kliuchnikovv/keystone-go/internal/ports"
 )
 
 // confirmTimeout is how long a device gets to report the change we asked for.

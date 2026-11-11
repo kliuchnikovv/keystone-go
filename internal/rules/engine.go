@@ -7,7 +7,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/kliuchnikovv/keystone/internal/domain"
+	"github.com/kliuchnikovv/keystone-go/internal/domain"
 )
 
 // RuleRepository persists rules. Kept as a subset here so the engine doesn't

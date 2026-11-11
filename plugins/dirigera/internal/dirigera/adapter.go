@@ -9,8 +9,8 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/kliuchnikovv/keystone/internal/domain"
-	"github.com/kliuchnikovv/keystone/internal/ports"
+	"github.com/kliuchnikovv/keystone-go/internal/domain"
+	"github.com/kliuchnikovv/keystone-go/internal/ports"
 )
 
 // Adapter implements ports.Adapter on top of a DIRIGERA HTTP client

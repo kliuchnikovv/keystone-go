@@ -11,7 +11,7 @@ keystone daemon. Everything below is real — no placeholders, no
   (`go run ./cmd/keystone -plugins-dir ./data/plugins` from the
   keystone tree does the job)
 - `keystone-plugin` on your PATH: `go install
-  github.com/kliuchnikovv/keystone/cmd/keystone-plugin@latest`
+  github.com/kliuchnikovv/keystone-go/cmd/keystone-plugin@latest`
 
 ## 1. Scaffold
 

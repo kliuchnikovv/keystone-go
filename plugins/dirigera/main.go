@@ -16,8 +16,8 @@ import (
 
 	"github.com/kliuchnikovv/keystone-api/sidecar"
 
-	"github.com/kliuchnikovv/keystone/plugins/dirigera/internal/dirigera"
-	"github.com/kliuchnikovv/keystone/plugins/sdk"
+	"github.com/kliuchnikovv/keystone-go/plugins/dirigera/internal/dirigera"
+	"github.com/kliuchnikovv/keystone-go/plugins/sdk"
 )
 
 // Version is stamped into hello for the manager's status output.

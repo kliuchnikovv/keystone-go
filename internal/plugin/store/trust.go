@@ -8,7 +8,7 @@ import (
 	"fmt"
 	"net/http"
 
-	"github.com/kliuchnikovv/keystone/internal/plugin/store/tuf"
+	"github.com/kliuchnikovv/keystone-go/internal/plugin/store/tuf"
 )
 
 // SigstoreTrust bundles the two things a SigstoreVerifier actually

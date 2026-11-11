@@ -9,8 +9,8 @@
 package bridge
 
 import (
-	"github.com/kliuchnikovv/keystone/internal/domain"
-	"github.com/kliuchnikovv/keystone/internal/ports"
+	"github.com/kliuchnikovv/keystone-go/internal/domain"
+	"github.com/kliuchnikovv/keystone-go/internal/ports"
 )
 
 // Method names. Kept as constants so plugin authors and the bridge stay in

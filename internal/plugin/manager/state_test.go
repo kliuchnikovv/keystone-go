@@ -8,8 +8,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/kliuchnikovv/keystone/internal/plugin/manager"
-	"github.com/kliuchnikovv/keystone/internal/plugin/registry"
+	"github.com/kliuchnikovv/keystone-go/internal/plugin/manager"
+	"github.com/kliuchnikovv/keystone-go/internal/plugin/registry"
 )
 
 func TestStateStore_PersistsEnableDisable(t *testing.T) {

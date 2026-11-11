@@ -5,7 +5,7 @@ interface the in-tree Matter adapter did, hands it to `sdk.Run`,
 and the SDK does everything else: sidecar-protocol handshake, RPC
 wire, event pump, config-flow proxy, error taxonomy.
 
-Import path: `github.com/kliuchnikovv/keystone/plugins/sdk`.
+Import path: `github.com/kliuchnikovv/keystone-go/plugins/sdk`.
 
 ## Minimum viable main.go
 
@@ -17,7 +17,7 @@ import (
     "log/slog"
     "os"
 
-    "github.com/kliuchnikovv/keystone/plugins/sdk"
+    "github.com/kliuchnikovv/keystone-go/plugins/sdk"
 
     "github.com/you/plugin-hello/internal/hello"
 )

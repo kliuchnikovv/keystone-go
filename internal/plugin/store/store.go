@@ -27,7 +27,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/kliuchnikovv/keystone/internal/plugin/pack"
+	"github.com/kliuchnikovv/keystone-go/internal/plugin/pack"
 )
 
 // DefaultTimeout bounds one HTTP call — an index fetch or a tarball

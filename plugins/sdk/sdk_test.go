@@ -11,9 +11,9 @@ import (
 
 	"github.com/kliuchnikovv/keystone-api/sidecar"
 
-	"github.com/kliuchnikovv/keystone/internal/domain"
-	"github.com/kliuchnikovv/keystone/internal/ports"
-	"github.com/kliuchnikovv/keystone/plugins/sdk"
+	"github.com/kliuchnikovv/keystone-go/internal/domain"
+	"github.com/kliuchnikovv/keystone-go/internal/ports"
+	"github.com/kliuchnikovv/keystone-go/plugins/sdk"
 )
 
 // stubAdapter is a minimal transport used to exercise the SDK's Run

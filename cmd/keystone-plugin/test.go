@@ -7,7 +7,7 @@ import (
 	"os/exec"
 	"path/filepath"
 
-	"github.com/kliuchnikovv/keystone/internal/plugin"
+	"github.com/kliuchnikovv/keystone-go/internal/plugin"
 )
 
 func runTest(args []string) error {

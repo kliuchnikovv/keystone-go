@@ -25,9 +25,9 @@ import (
 
 	"github.com/kliuchnikovv/keystone-api/sidecar"
 
-	"github.com/kliuchnikovv/keystone/internal/domain"
-	"github.com/kliuchnikovv/keystone/internal/plugin/bridge"
-	"github.com/kliuchnikovv/keystone/internal/ports"
+	"github.com/kliuchnikovv/keystone-go/internal/domain"
+	"github.com/kliuchnikovv/keystone-go/internal/plugin/bridge"
+	"github.com/kliuchnikovv/keystone-go/internal/ports"
 )
 
 // Adapter is the surface a transport plugin implements. Semantically

@@ -9,10 +9,10 @@ import (
 	"strings"
 	"testing"
 
-	pluginmf "github.com/kliuchnikovv/keystone/internal/plugin"
-	"github.com/kliuchnikovv/keystone/internal/api/plugins"
-	"github.com/kliuchnikovv/keystone/internal/plugin/manager"
-	"github.com/kliuchnikovv/keystone/internal/plugin/store"
+	pluginmf "github.com/kliuchnikovv/keystone-go/internal/plugin"
+	"github.com/kliuchnikovv/keystone-go/internal/api/plugins"
+	"github.com/kliuchnikovv/keystone-go/internal/plugin/manager"
+	"github.com/kliuchnikovv/keystone-go/internal/plugin/store"
 )
 
 type stubManager struct {

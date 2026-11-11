@@ -1,4 +1,4 @@
-module github.com/kliuchnikovv/keystone
+module github.com/kliuchnikovv/keystone-go
 
 go 1.23
 

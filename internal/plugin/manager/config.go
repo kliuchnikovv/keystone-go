@@ -11,7 +11,7 @@ import (
 
 	"github.com/santhosh-tekuri/jsonschema/v6"
 
-	"github.com/kliuchnikovv/keystone/internal/plugin"
+	"github.com/kliuchnikovv/keystone-go/internal/plugin"
 )
 
 // configFileName is the file inside a plugin's data dir that stores the

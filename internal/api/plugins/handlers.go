@@ -16,8 +16,8 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/kliuchnikovv/keystone/internal/plugin/manager"
-	"github.com/kliuchnikovv/keystone/internal/plugin/store"
+	"github.com/kliuchnikovv/keystone-go/internal/plugin/manager"
+	"github.com/kliuchnikovv/keystone-go/internal/plugin/store"
 )
 
 // Manager is the surface these handlers need. Kept minimal so tests can

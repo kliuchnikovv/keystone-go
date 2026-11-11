@@ -1,7 +1,7 @@
 package dirigera
 
 import (
-	"github.com/kliuchnikovv/keystone/internal/domain"
+	"github.com/kliuchnikovv/keystone-go/internal/domain"
 )
 
 // ToDiscovered turns one hub Device into a keystone-side discovered

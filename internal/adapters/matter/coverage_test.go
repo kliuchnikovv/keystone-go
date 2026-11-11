@@ -3,7 +3,7 @@ package matter
 import (
 	"testing"
 
-	"github.com/kliuchnikovv/keystone/internal/domain"
+	"github.com/kliuchnikovv/keystone-go/internal/domain"
 )
 
 // The same keystone capability is carried by different Matter clusters

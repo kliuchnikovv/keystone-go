@@ -11,9 +11,9 @@ import (
 	"sync"
 	"time"
 
-	"github.com/kliuchnikovv/keystone/internal/domain"
-	"github.com/kliuchnikovv/keystone/internal/ports"
-	"github.com/kliuchnikovv/keystone/internal/registry"
+	"github.com/kliuchnikovv/keystone-go/internal/domain"
+	"github.com/kliuchnikovv/keystone-go/internal/ports"
+	"github.com/kliuchnikovv/keystone-go/internal/registry"
 )
 
 // DeviceService coordinates commissioning, control, and lifecycle of devices

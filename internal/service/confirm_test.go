@@ -7,9 +7,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/kliuchnikovv/keystone/internal/domain"
-	"github.com/kliuchnikovv/keystone/internal/ports"
-	"github.com/kliuchnikovv/keystone/internal/registry"
+	"github.com/kliuchnikovv/keystone-go/internal/domain"
+	"github.com/kliuchnikovv/keystone-go/internal/ports"
+	"github.com/kliuchnikovv/keystone-go/internal/registry"
 )
 
 // recordingBus collects published events so a test can assert on what the

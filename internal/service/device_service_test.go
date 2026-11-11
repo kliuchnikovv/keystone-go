@@ -6,9 +6,9 @@ import (
 	"log/slog"
 	"testing"
 
-	"github.com/kliuchnikovv/keystone/internal/domain"
-	"github.com/kliuchnikovv/keystone/internal/ports"
-	"github.com/kliuchnikovv/keystone/internal/registry"
+	"github.com/kliuchnikovv/keystone-go/internal/domain"
+	"github.com/kliuchnikovv/keystone-go/internal/ports"
+	"github.com/kliuchnikovv/keystone-go/internal/registry"
 )
 
 // fakeAdapter reports one device the way a real transport would after an

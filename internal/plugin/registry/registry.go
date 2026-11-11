@@ -16,7 +16,7 @@ import (
 	"path/filepath"
 	"sort"
 
-	"github.com/kliuchnikovv/keystone/internal/plugin"
+	"github.com/kliuchnikovv/keystone-go/internal/plugin"
 )
 
 // Entry is one plugin dir on disk. Manifest is nil when Err is set — a

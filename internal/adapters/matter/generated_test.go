@@ -4,7 +4,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/kliuchnikovv/keystone/internal/domain"
+	"github.com/kliuchnikovv/keystone-go/internal/domain"
 )
 
 // Рукописная таблица «менять командой» должна совпадать со спекой. Раньше это

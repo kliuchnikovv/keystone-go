@@ -6,11 +6,11 @@ import (
 	"context"
 	"log/slog"
 
-	"github.com/kliuchnikovv/keystone/internal/api/grpcapi"
-	"github.com/kliuchnikovv/keystone/internal/ports"
-	"github.com/kliuchnikovv/keystone/internal/registry"
-	"github.com/kliuchnikovv/keystone/internal/rules"
-	"github.com/kliuchnikovv/keystone/internal/service"
+	"github.com/kliuchnikovv/keystone-go/internal/api/grpcapi"
+	"github.com/kliuchnikovv/keystone-go/internal/ports"
+	"github.com/kliuchnikovv/keystone-go/internal/registry"
+	"github.com/kliuchnikovv/keystone-go/internal/rules"
+	"github.com/kliuchnikovv/keystone-go/internal/service"
 )
 
 // startGRPC starts the gRPC server in a goroutine. The server exits when ctx

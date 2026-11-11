@@ -4,7 +4,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/kliuchnikovv/keystone/internal/plugin"
+	"github.com/kliuchnikovv/keystone-go/internal/plugin"
 )
 
 func TestSidecarCommand_ByRuntime(t *testing.T) {

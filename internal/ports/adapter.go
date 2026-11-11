@@ -7,7 +7,7 @@ import (
 	"context"
 	"time"
 
-	"github.com/kliuchnikovv/keystone/internal/domain"
+	"github.com/kliuchnikovv/keystone-go/internal/domain"
 )
 
 // Adapter is the contract every transport must satisfy. It is the single

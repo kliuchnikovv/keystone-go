@@ -5,7 +5,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/kliuchnikovv/keystone/internal/domain"
+	"github.com/kliuchnikovv/keystone-go/internal/domain"
 )
 
 // ErrNotFound is returned when a device is not present in the registry.

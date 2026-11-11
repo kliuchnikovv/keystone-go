@@ -6,7 +6,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/kliuchnikovv/keystone/internal/plugin"
+	"github.com/kliuchnikovv/keystone-go/internal/plugin"
 )
 
 func TestNew_ScaffoldsValidPlugin(t *testing.T) {

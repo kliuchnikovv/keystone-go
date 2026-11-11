@@ -3,7 +3,7 @@ package dirigera
 import (
 	"testing"
 
-	"github.com/kliuchnikovv/keystone/internal/domain"
+	"github.com/kliuchnikovv/keystone-go/internal/domain"
 )
 
 func TestToDiscovered_LightWithBrightness(t *testing.T) {

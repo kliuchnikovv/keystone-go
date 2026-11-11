@@ -20,7 +20,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/kliuchnikovv/keystone/internal/plugin/store/tuf"
+	"github.com/kliuchnikovv/keystone-go/internal/plugin/store/tuf"
 )
 
 // TestLoadSigstoreTrustFromTUF spins up a mini-TUF repository that

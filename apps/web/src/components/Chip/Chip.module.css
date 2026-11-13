@@ -1,0 +1,63 @@
+.root {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  border-radius: var(--ks-radius-pill);
+  padding: 4px 10px;
+  font-size: 12px;
+  line-height: 1;
+  font-weight: 500;
+  background: var(--ks-color-surface-raised);
+  color: var(--ks-color-text-muted);
+  border: 1px solid var(--ks-color-border);
+  white-space: nowrap;
+}
+
+.size-sm {
+  padding: 3px 8px;
+  font-size: 11px;
+}
+
+.clickable {
+  cursor: pointer;
+  transition:
+    background var(--ks-motion-fast) var(--ks-ease-out),
+    color var(--ks-motion-fast) var(--ks-ease-out);
+}
+
+.clickable:hover {
+  color: var(--ks-color-text);
+}
+
+.tone-neutral {
+}
+
+.tone-muted {
+  background: transparent;
+  color: var(--ks-color-text-subtle);
+}
+
+.tone-accent,
+.selected {
+  background: color-mix(in srgb, var(--ks-color-accent) 24%, transparent);
+  color: var(--ks-color-text);
+  border-color: color-mix(in srgb, var(--ks-color-accent) 40%, transparent);
+}
+
+.tone-success {
+  background: color-mix(in srgb, var(--ks-color-success) 22%, transparent);
+  color: var(--ks-color-success);
+  border-color: color-mix(in srgb, var(--ks-color-success) 40%, transparent);
+}
+
+.tone-warn {
+  background: color-mix(in srgb, var(--ks-color-warning) 22%, transparent);
+  color: var(--ks-color-warning);
+  border-color: color-mix(in srgb, var(--ks-color-warning) 40%, transparent);
+}
+
+.tone-danger {
+  background: color-mix(in srgb, var(--ks-color-danger) 22%, transparent);
+  color: var(--ks-color-danger);
+  border-color: color-mix(in srgb, var(--ks-color-danger) 40%, transparent);
+}

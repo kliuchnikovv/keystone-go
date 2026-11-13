@@ -26,12 +26,12 @@ import (
 	"google.golang.org/protobuf/types/known/structpb"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
-	pb "github.com/kliuchnikovv/keystone/gen/go/keystone/v1"
-	"github.com/kliuchnikovv/keystone/internal/domain"
-	"github.com/kliuchnikovv/keystone/internal/ports"
-	"github.com/kliuchnikovv/keystone/internal/registry"
-	"github.com/kliuchnikovv/keystone/internal/rules"
-	"github.com/kliuchnikovv/keystone/internal/service"
+	pb "github.com/kliuchnikovv/keystone-go/gen/go/keystone/v1"
+	"github.com/kliuchnikovv/keystone-go/internal/domain"
+	"github.com/kliuchnikovv/keystone-go/internal/ports"
+	"github.com/kliuchnikovv/keystone-go/internal/registry"
+	"github.com/kliuchnikovv/keystone-go/internal/rules"
+	"github.com/kliuchnikovv/keystone-go/internal/service"
 )
 
 // Server is the composite gRPC service. It multiplexes DeviceService,

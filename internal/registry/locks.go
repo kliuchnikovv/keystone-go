@@ -5,7 +5,7 @@ package registry
 import (
 	"sync"
 
-	"github.com/kliuchnikovv/keystone/internal/domain"
+	"github.com/kliuchnikovv/keystone-go/internal/domain"
 )
 
 // KeyedLock is a mutex-per-key primitive. It gives the rules engine and the

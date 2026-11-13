@@ -8,11 +8,12 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"sync"
 	"time"
 
-	"github.com/kliuchnikovv/keystone/internal/domain"
-	"github.com/kliuchnikovv/keystone/internal/ports"
-	"github.com/kliuchnikovv/keystone/internal/registry"
+	"github.com/kliuchnikovv/keystone-go/internal/domain"
+	"github.com/kliuchnikovv/keystone-go/internal/ports"
+	"github.com/kliuchnikovv/keystone-go/internal/registry"
 )
 
 // DeviceService coordinates commissioning, control, and lifecycle of devices
@@ -21,7 +22,16 @@ type DeviceService struct {
 	log      *slog.Logger
 	registry *registry.Registry
 	bus      ports.EventBus
-	adapters map[domain.TransportKind]ports.Adapter
+
+	// adapters is guarded by adaptersMu — a plugin coming up at runtime
+	// races with in-flight HTTP calls that resolve their transport here.
+	adaptersMu sync.RWMutex
+	adapters   map[domain.TransportKind]ports.Adapter
+
+	// confirms watches that commands actually changed something. Accepting a
+	// command and acting on it are different things in Matter, and only the
+	// device's own report tells them apart.
+	confirms *confirmations
 }
 
 // NewDeviceService builds the service. Adapters are keyed by their Kind() and
@@ -36,7 +46,43 @@ func NewDeviceService(log *slog.Logger, reg *registry.Registry, bus ports.EventB
 		registry: reg,
 		bus:      bus,
 		adapters: m,
+		confirms: newConfirmations(log, bus, confirmTimeout),
 	}
+}
+
+// StopConfirmations cancels outstanding confirmation timers. Called on
+// shutdown so a timer cannot fire into a closed bus.
+func (s *DeviceService) StopConfirmations() { s.confirms.stop() }
+
+// adapterFor returns the adapter for a transport kind, or (nil, false).
+// All lookups go through here so the RWMutex stays honest.
+func (s *DeviceService) adapterFor(kind domain.TransportKind) (ports.Adapter, bool) {
+	s.adaptersMu.RLock()
+	a, ok := s.adapters[kind]
+	s.adaptersMu.RUnlock()
+	return a, ok
+}
+
+// RegisterAdapter adds an adapter at runtime. Fails if another adapter for
+// the same transport kind is already registered — a plugin should never
+// silently replace a live one.
+func (s *DeviceService) RegisterAdapter(a ports.Adapter) error {
+	s.adaptersMu.Lock()
+	defer s.adaptersMu.Unlock()
+	kind := a.Kind()
+	if _, exists := s.adapters[kind]; exists {
+		return fmt.Errorf("adapter for transport %q already registered", kind)
+	}
+	s.adapters[kind] = a
+	return nil
+}
+
+// UnregisterAdapter removes an adapter, e.g. when its owning plugin is
+// disabled. No-op when the kind is not registered.
+func (s *DeviceService) UnregisterAdapter(kind domain.TransportKind) {
+	s.adaptersMu.Lock()
+	delete(s.adapters, kind)
+	s.adaptersMu.Unlock()
 }
 
 // List returns every device currently in the registry.
@@ -62,7 +108,7 @@ func (s *DeviceService) Get(id domain.DeviceID) (*domain.Device, error) {
 // Commission asks the specified transport to add a new device, then
 // registers it locally.
 func (s *DeviceService) Commission(ctx context.Context, transport domain.TransportKind, req ports.CommissionRequest, name string, deviceType domain.DeviceType) (*domain.Device, error) {
-	adapter, ok := s.adapters[transport]
+	adapter, ok := s.adapterFor(transport)
 	if !ok {
 		return nil, fmt.Errorf("no adapter registered for transport %q", transport)
 	}
@@ -87,6 +133,18 @@ func (s *DeviceService) Commission(ctx context.Context, transport domain.Transpo
 	}
 	if discovered == nil {
 		return nil, errors.New("commissioned device not found in discovery")
+	}
+
+	// The caller's name and type win when it actually has them — the user may
+	// have typed a name, or the UI may know better than the device does. When
+	// it doesn't, use what the device reports about itself rather than storing
+	// a blank: an empty type leaves the UI with no controls at all, which is
+	// how a fully working lamp ended up as "управление не реализовано".
+	if deviceType == "" {
+		deviceType = discovered.Type
+	}
+	if name == "" {
+		name = discovered.Name
 	}
 
 	// Materialise the domain.Device.
@@ -122,7 +180,7 @@ func (s *DeviceService) Decommission(ctx context.Context, id domain.DeviceID) er
 	if err != nil {
 		return err
 	}
-	adapter, ok := s.adapters[d.Transport]
+	adapter, ok := s.adapterFor(d.Transport)
 	if !ok {
 		return fmt.Errorf("no adapter registered for transport %q", d.Transport)
 	}
@@ -135,19 +193,66 @@ func (s *DeviceService) Decommission(ctx context.Context, id domain.DeviceID) er
 	return adapterErr
 }
 
+// DiscoverCommissionable asks one transport to scan for devices that are not
+// yet commissioned. Returns an error if the transport is unknown or has no
+// concept of commissionable discovery (most don't).
+//
+// Finding a device does not mean it can be added: pairing still needs the setup
+// code from the device itself, which is never advertised.
+func (s *DeviceService) DiscoverCommissionable(
+	ctx context.Context,
+	transport domain.TransportKind,
+	window time.Duration,
+) (<-chan ports.CommissionableDevice, error) {
+	adapter, ok := s.adapterFor(transport)
+	if !ok {
+		return nil, fmt.Errorf("no adapter registered for transport %q", transport)
+	}
+	scanner, ok := adapter.(ports.CommissionableDiscoverer)
+	if !ok {
+		return nil, fmt.Errorf("transport %q does not support scanning for commissionable devices", transport)
+	}
+	return scanner.DiscoverCommissionable(ctx, window)
+}
+
+// CameraStreamer returns the transport behind a device if it can broker a live
+// video session. The device id is resolved here so callers never have to know
+// which transport a camera is on.
+func (s *DeviceService) CameraStreamer(id domain.DeviceID) (ports.CameraStreamer, *domain.Device, error) {
+	d, err := s.registry.Get(id)
+	if err != nil {
+		return nil, nil, err
+	}
+	adapter, ok := s.adapterFor(d.Transport)
+	if !ok {
+		return nil, nil, fmt.Errorf("no adapter registered for transport %q", d.Transport)
+	}
+	streamer, ok := adapter.(ports.CameraStreamer)
+	if !ok {
+		return nil, nil, fmt.Errorf("transport %q cannot stream video", d.Transport)
+	}
+	if !d.HasFeature(domain.FeatureCamera) {
+		return nil, nil, fmt.Errorf("device %s is not a camera", id)
+	}
+	return streamer, d, nil
+}
+
 // SyncFromAdapters walks every registered adapter, calls Discover, and
 // registers any peer the adapter reports but the registry does not know
 // about yet. Intended to run once at boot so a matter.js sidecar with
 // pre-commissioned devices (typical case: keystone restarted, fabric on
 // disk survived) rehydrates the domain registry automatically. Returns the
 // list of newly added devices so callers can persist them.
-func (s *DeviceService) SyncFromAdapters(ctx context.Context) ([]*domain.Device, error) {
-	known := make(map[string]bool)
+func (s *DeviceService) SyncFromAdapters(ctx context.Context) (added, updated []*domain.Device, err error) {
+	// Index existing devices by transport-ref so we can distinguish
+	// "new to keystone" (add) from "already known, features maybe stale"
+	// (refresh) — the latter happens after a sidecar upgrade that starts
+	// reporting cluster info we couldn't see before.
+	knownByKey := make(map[string]*domain.Device)
 	for _, d := range s.registry.List() {
-		known[string(d.Transport)+":"+string(d.TransportRef)] = true
+		knownByKey[string(d.Transport)+":"+string(d.TransportRef)] = d
 	}
 
-	var added []*domain.Device
 	var firstErr error
 	for kind, adapter := range s.adapters {
 		ch, err := adapter.Discover(ctx)
@@ -160,7 +265,15 @@ func (s *DeviceService) SyncFromAdapters(ctx context.Context) ([]*domain.Device,
 		}
 		for disc := range ch {
 			key := string(kind) + ":" + string(disc.TransportRef)
-			if known[key] {
+			if existing, ok := knownByKey[key]; ok {
+				if s.registry.UpdateDiscoveryInfo(existing.ID, disc.Type, disc.Manufacturer, disc.Model, disc.Features) {
+					s.log.Info("device features refreshed from adapter",
+						"id", existing.ID, "transport", kind, "features", len(disc.Features))
+					// Re-fetch the updated snapshot so caller can persist it.
+					if refreshed, err := s.registry.Get(existing.ID); err == nil {
+						updated = append(updated, refreshed)
+					}
+				}
 				continue
 			}
 			d := &domain.Device{
@@ -180,11 +293,11 @@ func (s *DeviceService) SyncFromAdapters(ctx context.Context) ([]*domain.Device,
 				continue
 			}
 			s.log.Info("device synced from adapter", "id", d.ID, "transport", kind, "name", d.Name)
-			known[key] = true
+			knownByKey[key] = d
 			added = append(added, d)
 		}
 	}
-	return added, firstErr
+	return added, updated, firstErr
 }
 
 // InvokeAction executes an action on a device, holding the per-device lock
@@ -197,12 +310,21 @@ func (s *DeviceService) InvokeAction(ctx context.Context, id domain.DeviceID, fe
 	if err != nil {
 		return err
 	}
-	adapter, ok := s.adapters[d.Transport]
+	adapter, ok := s.adapterFor(d.Transport)
 	if !ok {
 		return fmt.Errorf("no adapter registered for transport %q", d.Transport)
 	}
 
-	return adapter.InvokeAction(ctx, d.TransportRef, feature, action, params)
+	if err := adapter.InvokeAction(ctx, d.TransportRef, feature, action, params); err != nil {
+		return err
+	}
+
+	// The adapter returning nil means the transport accepted the command, not
+	// that the device did anything. Expect the state to come back.
+	if state, ok := stateChangedBy(feature, action); ok {
+		s.expectChange(id, feature, state, nil, string(action))
+	}
+	return nil
 }
 
 // WriteState sets an attribute of a device, again serialising per-device.
@@ -214,12 +336,67 @@ func (s *DeviceService) WriteState(ctx context.Context, id domain.DeviceID, feat
 	if err != nil {
 		return err
 	}
-	adapter, ok := s.adapters[d.Transport]
+	adapter, ok := s.adapterFor(d.Transport)
 	if !ok {
 		return fmt.Errorf("no adapter registered for transport %q", d.Transport)
 	}
 
-	return adapter.WriteState(ctx, d.TransportRef, feature, key, value)
+	if err := adapter.WriteState(ctx, d.TransportRef, feature, key, value); err != nil {
+		return err
+	}
+	s.expectChange(id, feature, key, value, string(key))
+	return nil
+}
+
+// expectChange arms a confirmation unless the device is already in the
+// requested state — Matter reports on change, so asking for what is already
+// true produces no report, and waiting for one would be a false alarm.
+func (s *DeviceService) expectChange(
+	id domain.DeviceID,
+	feature domain.FeatureKey,
+	state domain.StateKey,
+	target any,
+	what string,
+) {
+	if target != nil {
+		if current, ok := s.registry.GetState(id, feature, state); ok && alreadyAt(current, target) {
+			return
+		}
+	}
+	s.confirms.expect(id, feature, state, what)
+}
+
+// stateChangedBy maps an action onto the state the device should report back.
+// Actions without an observable state (a self-test, a doorbell chime) are not
+// tracked: there is nothing to wait for, and inventing an expectation would
+// produce alarms nobody can act on.
+func stateChangedBy(feature domain.FeatureKey, action domain.ActionKey) (domain.StateKey, bool) {
+	switch action {
+	case domain.ActionTurnOn, domain.ActionTurnOff, domain.ActionToggle:
+		return domain.StateOnOff, true
+	case domain.ActionLock, domain.ActionUnlock:
+		return domain.StateLocked, true
+	case domain.ActionOpen, domain.ActionClose, domain.ActionStop:
+		if feature == domain.FeatureValve {
+			return domain.StateValveOpen, true
+		}
+		return domain.StateLevel, true
+	case domain.ActionSet:
+		switch feature {
+		case domain.FeatureBrightness, domain.FeatureCoverPosition:
+			return domain.StateLevel, true
+		case domain.FeatureColorTemp:
+			return domain.StateColorTempK, true
+		case domain.FeatureMode:
+			return domain.StateMode, true
+		}
+	case domain.ActionStart, domain.ActionPause, domain.ActionResume:
+		if feature == domain.FeatureMedia {
+			return domain.StatePlayback, true
+		}
+		return domain.StateRunState, true
+	}
+	return "", false
 }
 
 // ReadState reads an attribute from a device (no lock — reads are cheap).
@@ -228,7 +405,7 @@ func (s *DeviceService) ReadState(ctx context.Context, id domain.DeviceID, featu
 	if err != nil {
 		return nil, err
 	}
-	adapter, ok := s.adapters[d.Transport]
+	adapter, ok := s.adapterFor(d.Transport)
 	if !ok {
 		return nil, fmt.Errorf("no adapter registered for transport %q", d.Transport)
 	}
@@ -266,6 +443,19 @@ func (s *DeviceService) IngressLoop(ctx context.Context, adapter ports.Adapter) 
 			if !ok {
 				return nil
 			}
+			// Adapter-level status carries no device ref, so it must be
+			// handled before the per-device lookup below.
+			if ev.Kind == ports.TransportEventAdapterStatus {
+				connected, _ := ev.Value.(bool)
+				if connected {
+					s.log.Info("adapter backend reachable", "transport", adapter.Kind())
+				} else {
+					s.log.Warn("adapter backend unreachable — device state may be stale",
+						"transport", adapter.Kind())
+				}
+				continue
+			}
+
 			d, found := findDeviceByRef(ev.Ref)
 			if !found {
 				s.log.Debug("transport event for unknown device",
@@ -274,6 +464,9 @@ func (s *DeviceService) IngressLoop(ctx context.Context, adapter ports.Adapter) 
 			}
 			switch ev.Kind {
 			case ports.TransportEventStateChanged:
+				// The device spoke: whatever we were waiting for on this key
+				// has arrived.
+				s.confirms.observe(d.ID, ev.Feature, domain.StateKey(ev.Key))
 				snap := domain.StateSnapshot{
 					DeviceID:  d.ID,
 					Feature:   ev.Feature,

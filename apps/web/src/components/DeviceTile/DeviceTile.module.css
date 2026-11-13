@@ -1,0 +1,209 @@
+.root {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  padding: 16px;
+  gap: 10px;
+  border-radius: var(--ks-radius-lg);
+  background: var(--ks-color-surface);
+  border: 1px solid var(--ks-color-border);
+  transition:
+    background var(--ks-motion-base) var(--ks-ease-out),
+    border-color var(--ks-motion-base) var(--ks-ease-out);
+  overflow: hidden;
+}
+
+.size-compact {
+  padding: 12px;
+  gap: 6px;
+  border-radius: var(--ks-radius-md);
+  min-height: 96px;
+}
+
+.size-hero {
+  padding: 18px;
+  gap: 14px;
+}
+
+.header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.icon {
+  color: var(--ks-color-text-muted);
+  display: inline-flex;
+}
+
+.body {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.name {
+  margin: 0;
+  font-family: var(--ks-font-body);
+  font-weight: 600;
+  font-size: 15px;
+  color: var(--ks-color-text);
+  letter-spacing: -0.005em;
+}
+
+.size-compact .name {
+  font-size: 13px;
+}
+
+.meta {
+  font-size: 12px;
+  color: var(--ks-color-text-subtle);
+  min-height: 14px;
+}
+
+.slider {
+  margin-top: 4px;
+}
+
+.kelvin {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+  color: var(--ks-color-text-muted);
+}
+
+.kelvinDot {
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.08);
+}
+
+.big {
+  font-family: var(--ks-font-display);
+  font-weight: 500;
+  font-size: 34px;
+  line-height: 1;
+  color: var(--ks-color-text);
+  font-feature-settings: 'tnum' 1;
+  margin-top: 4px;
+}
+
+.bigUnit {
+  font-family: var(--ks-font-body);
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--ks-color-text-subtle);
+  margin-left: 4px;
+}
+
+/* ---- Type accents ---- */
+.type-light .icon {
+  color: var(--ks-color-warning);
+}
+
+.type-plug .icon {
+  color: var(--ks-color-text-muted);
+}
+
+.type-sensor .icon {
+  color: color-mix(in srgb, var(--ks-color-accent) 60%, white);
+}
+
+.type-motion .icon {
+  color: var(--ks-color-accent-secondary);
+}
+
+/* ---- States ---- */
+.state-active {
+  background: color-mix(in srgb, var(--ks-color-accent) 8%, var(--ks-color-surface));
+  border-color: color-mix(in srgb, var(--ks-color-accent) 22%, var(--ks-color-border));
+}
+
+.state-active.type-light {
+  box-shadow: inset 0 0 32px color-mix(in srgb, var(--ks-color-accent) 18%, transparent);
+}
+
+.state-active.type-motion .big,
+.state-active.type-motion .name {
+  color: var(--ks-color-accent-secondary);
+}
+
+.state-pending {
+  border-color: color-mix(in srgb, var(--ks-color-accent) 35%, transparent);
+}
+
+.state-offline {
+  opacity: 0.55;
+}
+
+.state-offline .name,
+.state-offline .meta {
+  color: var(--ks-color-text-subtle);
+}
+
+.state-error {
+  border-color: color-mix(in srgb, var(--ks-color-danger) 50%, transparent);
+  background: color-mix(in srgb, var(--ks-color-danger) 6%, var(--ks-color-surface));
+}
+
+.state-error .meta {
+  color: var(--ks-color-danger);
+}
+
+/* ---- Событие устройства ---- */
+
+/* Вспышка по краю плитки: заметно боковым зрением, но не дёргает раскладку. */
+.fired {
+  animation: tile-fired 900ms var(--ks-ease-spring);
+}
+
+.eventBadge {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  z-index: 2;
+  padding: 3px 9px;
+  border-radius: var(--ks-radius-pill);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+  color: var(--ks-color-bg);
+  background: var(--ks-color-accent);
+  animation: badge-in 220ms var(--ks-ease-spring);
+}
+
+.eventBadge[data-tone='neutral'] {
+  background: var(--ks-color-text-muted);
+}
+
+.eventBadge[data-tone='danger'] {
+  background: var(--ks-color-danger);
+  color: var(--ks-color-text);
+}
+
+@keyframes tile-fired {
+  0% {
+    box-shadow: 0 0 0 0 color-mix(in srgb, var(--ks-color-accent) 55%, transparent);
+  }
+  100% {
+    box-shadow: 0 0 0 14px transparent;
+  }
+}
+
+@keyframes badge-in {
+  from {
+    opacity: 0;
+    transform: translateY(-4px) scale(0.9);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .fired {
+    animation: none;
+  }
+  .eventBadge {
+    animation: none;
+  }
+}

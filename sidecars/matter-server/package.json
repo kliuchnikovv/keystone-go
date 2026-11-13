@@ -8,13 +8,17 @@
   "scripts": {
     "build": "tsc -p .",
     "start": "node dist/index.js",
-    "dev": "tsc -w -p . & node --watch dist/index.js"
+    "dev": "tsc -w -p . & node --watch dist/index.js",
+    "gen:tables": "node tools/gen-matter-tables.mjs"
   },
   "engines": {
     "node": ">=20"
   },
   "dependencies": {
     "@matter/main": "^0.17.9",
+    "@matter/nodejs-ble": "^0.17.9",
+    "@matter/protocol": "^0.17.9",
+    "@matter/types": "^0.17.9",
     "ws": "^8.18.0"
   },
   "devDependencies": {

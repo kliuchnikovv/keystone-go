@@ -4,7 +4,7 @@ import (
 	"context"
 	"time"
 
-	"github.com/kliuchnikovv/keystone/internal/domain"
+	"github.com/kliuchnikovv/keystone-go/internal/domain"
 )
 
 func init() {

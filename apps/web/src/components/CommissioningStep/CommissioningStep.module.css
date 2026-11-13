@@ -1,0 +1,80 @@
+.root {
+  display: flex;
+  gap: 14px;
+  padding: 14px 16px;
+  align-items: center;
+  border-radius: var(--ks-radius-md);
+  transition: background var(--ks-motion-base) var(--ks-ease-out);
+}
+
+.status-active {
+  background: color-mix(in srgb, var(--ks-color-accent) 12%, transparent);
+}
+
+.icon {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  flex-shrink: 0;
+  background: var(--ks-color-surface-raised);
+  color: var(--ks-color-text-subtle);
+  transition:
+    background var(--ks-motion-base) var(--ks-ease-out),
+    color var(--ks-motion-base) var(--ks-ease-out);
+}
+
+.status-done .icon {
+  background: color-mix(in srgb, var(--ks-color-success) 22%, transparent);
+  color: var(--ks-color-success);
+}
+
+.status-active .icon {
+  background: color-mix(in srgb, var(--ks-color-accent) 22%, transparent);
+  color: var(--ks-color-accent);
+}
+
+.dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: currentColor;
+  opacity: 0.4;
+}
+
+.text {
+  flex: 1;
+  min-width: 0;
+}
+
+.title {
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--ks-color-text);
+  transition: color var(--ks-motion-base) var(--ks-ease-out);
+}
+
+.status-idle .title {
+  color: var(--ks-color-text-subtle);
+}
+
+.detail {
+  margin-top: 2px;
+  font-size: 13px;
+  color: var(--ks-color-text-muted);
+}
+
+.status-active .detail {
+  color: var(--ks-color-accent);
+}
+
+.spin {
+  animation: cs-spin 1.4s linear infinite;
+}
+
+@keyframes cs-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}

@@ -16,20 +16,28 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"path/filepath"
 	"strings"
+	"sync"
 	"syscall"
 	"time"
 
-	"github.com/kliuchnikovv/keystone/internal/adapters/matter"
-	"github.com/kliuchnikovv/keystone/internal/adapters/virtual"
-	"github.com/kliuchnikovv/keystone/internal/api/ws"
-	"github.com/kliuchnikovv/keystone/internal/domain"
-	"github.com/kliuchnikovv/keystone/internal/eventbus"
-	"github.com/kliuchnikovv/keystone/internal/ports"
-	"github.com/kliuchnikovv/keystone/internal/registry"
-	"github.com/kliuchnikovv/keystone/internal/rules"
-	"github.com/kliuchnikovv/keystone/internal/service"
-	"github.com/kliuchnikovv/keystone/internal/storage/file"
+	"github.com/kliuchnikovv/keystone-api/sidecar"
+
+	"github.com/kliuchnikovv/keystone-go/internal/adapters/virtual"
+	pluginsapi "github.com/kliuchnikovv/keystone-go/internal/api/plugins"
+	"github.com/kliuchnikovv/keystone-go/internal/api/ws"
+	"github.com/kliuchnikovv/keystone-go/internal/domain"
+	"github.com/kliuchnikovv/keystone-go/internal/eventbus"
+	"github.com/kliuchnikovv/keystone-go/internal/plugin"
+	"github.com/kliuchnikovv/keystone-go/internal/plugin/bridge"
+	"github.com/kliuchnikovv/keystone-go/internal/plugin/manager"
+	pluginregistry "github.com/kliuchnikovv/keystone-go/internal/plugin/registry"
+	"github.com/kliuchnikovv/keystone-go/internal/ports"
+	"github.com/kliuchnikovv/keystone-go/internal/registry"
+	"github.com/kliuchnikovv/keystone-go/internal/rules"
+	"github.com/kliuchnikovv/keystone-go/internal/service"
+	"github.com/kliuchnikovv/keystone-go/internal/storage/file"
 )
 
 func main() {
@@ -38,7 +46,7 @@ func main() {
 	dataDir := flag.String("data", "./keystone-data", "data directory for persistence")
 	uiDir := flag.String("ui-dir", "./site", "directory served at /ui/ (dashboard + landing); empty to disable")
 	demo := flag.Bool("demo", true, "seed a virtual demo scene on first run")
-	matterAddr := flag.String("matter-sidecar", "", "matter.js sidecar URL (e.g. ws://localhost:5580); empty = disabled")
+	pluginsDir := flag.String("plugins-dir", "./keystone-data/plugins", "directory scanned for installed plugins; empty = disabled. Matter lives here as plugins/matter — install it and POST /plugins/matter/enable")
 	flag.Parse()
 
 	log := slog.New(slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelInfo}))
@@ -84,24 +92,9 @@ func main() {
 	defer func() { _ = virt.Stop(context.Background()) }()
 	adapters = append(adapters, virt)
 
-	// Matter over a matter.js sidecar. Optional — if -matter-sidecar is empty
-	// or the sidecar is unreachable at boot, we log the reason and continue
-	// without Matter so keystone still starts on a bare host.
-	if *matterAddr != "" {
-		cfg, err := parseMatterURL(*matterAddr)
-		if err != nil {
-			log.Error("matter sidecar url", "value", *matterAddr, "err", err)
-			os.Exit(1)
-		}
-		wsc := matter.NewWSClient(cfg.URL(), log.With("component", "matter-ws"))
-		mad := matter.New(log.With("component", "matter"), cfg, wsc)
-		if err := mad.Start(ctx); err != nil {
-			log.Warn("matter adapter start failed, continuing without matter", "err", err)
-		} else {
-			defer func() { _ = mad.Stop(context.Background()) }()
-			adapters = append(adapters, mad)
-		}
-	}
+	// Matter is no longer wired in-tree — it lives in plugins/matter and
+	// is mounted at runtime by the plugin manager. See
+	// docs/plugin-store-architecture.md and /plugins/matter/enable.
 
 	devSvc := service.NewDeviceService(log, reg, bus, adapters)
 
@@ -169,14 +162,92 @@ func main() {
 	go func() {
 		syncCtx, syncCancel := context.WithTimeout(ctx, 30*time.Second)
 		defer syncCancel()
-		added, err := devSvc.SyncFromAdapters(syncCtx)
+		added, updated, err := devSvc.SyncFromAdapters(syncCtx)
 		if err != nil {
 			log.Warn("adapter sync had errors", "err", err)
 		}
 		for _, d := range added {
 			persistOnAdd(d)
 		}
+		for _, d := range updated {
+			persistOnAdd(d)
+		}
 	}()
+
+	// --- Plugin manager ---
+	// A disabled plugins dir leaves the manager nil; the HTTP routes stay
+	// off and the core behaves exactly as before. Enabling it costs one
+	// directory scan at startup — installed plugins are Discovered, not
+	// Running, until someone POSTs enable.
+	var pluginMgr *manager.Manager
+	pluginIngressCancels := make(map[string]context.CancelFunc)
+	var pluginIngressMu sync.Mutex
+	if *pluginsDir != "" {
+		reg := pluginregistry.New(*pluginsDir, log.With("component", "plugin-registry"))
+		stateStore := &manager.FileStateStore{
+			Path: filepath.Join(*dataDir, "plugins-state.json"),
+		}
+		m, err := manager.New(manager.Options{
+			Registry:   reg,
+			Logger:     log.With("component", "plugin-manager"),
+			DataDir:    filepath.Join(*dataDir, "plugin-data"),
+			StateStore: stateStore,
+			OnPluginLog: func(name, stream, line string) {
+				log.Info("plugin log", "plugin", name, "stream", stream, "line", line)
+			},
+			OnEnable: func(startCtx context.Context, name string, mf *plugin.Manifest, client *sidecar.Client) error {
+				kind, err := transportKindFromManifest(mf)
+				if err != nil {
+					return err
+				}
+				bridgeAdapter := bridge.New(client, kind, log.With("component", "plugin-adapter", "plugin", name))
+				if err := bridgeAdapter.Start(startCtx); err != nil {
+					return fmt.Errorf("bridge start: %w", err)
+				}
+				if err := devSvc.RegisterAdapter(bridgeAdapter); err != nil {
+					_ = bridgeAdapter.Stop(context.Background())
+					return err
+				}
+				loopCtx, cancel := context.WithCancel(ctx)
+				pluginIngressMu.Lock()
+				pluginIngressCancels[name] = cancel
+				pluginIngressMu.Unlock()
+				go func() {
+					if err := devSvc.IngressLoop(loopCtx, bridgeAdapter); err != nil && !errors.Is(err, context.Canceled) {
+						log.Error("plugin ingress loop", "plugin", name, "err", err)
+					}
+				}()
+				log.Info("plugin adapter registered", "plugin", name, "transport", kind)
+				return nil
+			},
+			OnDisable: func(name string, mf *plugin.Manifest) {
+				pluginIngressMu.Lock()
+				cancel, ok := pluginIngressCancels[name]
+				delete(pluginIngressCancels, name)
+				pluginIngressMu.Unlock()
+				if ok {
+					cancel()
+				}
+				if kind, err := transportKindFromManifest(mf); err == nil {
+					devSvc.UnregisterAdapter(kind)
+					log.Info("plugin adapter unregistered", "plugin", name, "transport", kind)
+				}
+			},
+		})
+		if err != nil {
+			log.Error("plugin manager", "err", err)
+			os.Exit(1)
+		}
+		if err := m.Discover(); err != nil {
+			log.Warn("plugin discover", "err", err)
+		}
+		// Bring back up whatever the operator had running before the
+		// daemon last stopped. Runs asynchronously so a plugin that
+		// hangs during Start does not delay the rest of boot.
+		go m.RestoreEnabled(ctx)
+		pluginMgr = m
+		defer m.Shutdown(context.Background())
+	}
 
 	// --- HTTP API ---
 	mux := http.NewServeMux()
@@ -186,6 +257,10 @@ func main() {
 	mux.HandleFunc("GET /devices", handleListDevices(devSvc))
 	mux.HandleFunc("POST /devices/commission", handleCommission(devSvc, persistOnAdd))
 	mux.HandleFunc("POST /devices/sync", handleSyncFromAdapters(devSvc, persistOnAdd))
+	mux.HandleFunc("GET /discover", handleDiscoverCommissionable(devSvc))
+	mux.HandleFunc("POST /devices/{id}/camera/session", handleCameraSession(devSvc))
+	mux.HandleFunc("POST /devices/{id}/camera/ice", handleCameraICE(devSvc))
+	mux.HandleFunc("POST /devices/{id}/camera/stop", handleCameraStop(devSvc))
 	mux.HandleFunc("GET /devices/{id}", handleGetDevice(devSvc))
 	mux.HandleFunc("DELETE /devices/{id}", handleDeleteDevice(devSvc, repo))
 	mux.HandleFunc("POST /devices/{id}/actions", handleInvokeAction(devSvc))
@@ -195,6 +270,10 @@ func main() {
 	mux.HandleFunc("DELETE /rules/{id}", handleDeleteRule(engine))
 	mux.HandleFunc("GET /rules/runs", handleListRuns(engine))
 	mux.HandleFunc("GET /stream", ws.Handler(bus, log.With("component", "ws")))
+
+	if pluginMgr != nil {
+		pluginsapi.Register(mux, pluginMgr)
+	}
 
 	// Static UI (dashboard for testing, landing page).
 	// Served from a directory on disk so it can be edited without rebuilding.
@@ -226,6 +305,9 @@ func main() {
 
 	<-ctx.Done()
 	log.Info("shutting down")
+	// Drop pending confirmation timers first: a device that never answers
+	// should not raise an alarm about a system that is already going away.
+	devSvc.StopConfirmations()
 	shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer shutdownCancel()
 	_ = srv.Shutdown(shutdownCtx)
@@ -338,10 +420,10 @@ func handleListDevices(svc *service.DeviceService) http.HandlerFunc {
 }
 
 type commissionRequest struct {
-	Transport string            `json:"transport"`         // e.g. "matter", "virtual"
-	Payload   string            `json:"payload"`           // Matter setup code, virtual spec, …
-	Name      string            `json:"name"`              // user-visible label
-	Type      string            `json:"type,omitempty"`    // domain.DeviceType override; falls back to what the adapter reports
+	Transport string            `json:"transport"`      // e.g. "matter", "virtual"
+	Payload   string            `json:"payload"`        // Matter setup code, virtual spec, …
+	Name      string            `json:"name"`           // user-visible label
+	Type      string            `json:"type,omitempty"` // domain.DeviceType override; falls back to what the adapter reports
 	WifiSSID  string            `json:"wifi_ssid,omitempty"`
 	WifiCred  string            `json:"wifi_cred,omitempty"`
 	Extra     map[string]string `json:"extra,omitempty"`
@@ -361,44 +443,333 @@ func handleCommission(svc *service.DeviceService, persist func(*domain.Device)) 
 		if req.Name == "" {
 			req.Name = "New device"
 		}
+
+		// NDJSON progress stream. Frontend expects one JSON object per line
+		// with shape {stage, message?, device?} where stage is one of
+		// discovering|pairing|verifying|done|error.
+		w.Header().Set("Content-Type", "application/x-ndjson")
+		w.Header().Set("Cache-Control", "no-store")
+		flusher, _ := w.(http.Flusher)
+		enc := json.NewEncoder(w)
+		emit := func(ev map[string]any) {
+			_ = enc.Encode(ev)
+			if flusher != nil {
+				flusher.Flush()
+			}
+		}
+
 		// Give the adapter generous time — matter commissioning through Thread
 		// Border Router can take 30-90 seconds under normal conditions.
 		ctx, cancel := context.WithTimeout(r.Context(), 3*time.Minute)
 		defer cancel()
 
-		d, err := svc.Commission(ctx,
-			domain.TransportKind(req.Transport),
-			ports.CommissionRequest{
-				Payload:  req.Payload,
-				WifiSSID: req.WifiSSID,
-				WifiCred: req.WifiCred,
-				Extra:    req.Extra,
-			},
-			req.Name,
-			domain.DeviceType(req.Type),
-		)
+		emit(map[string]any{"stage": "discovering", "message": "поиск устройства"})
+
+		// Real progress from the transport. The adapter calls Progress from its
+		// event goroutine, so stages land on a buffered channel and only this
+		// goroutine ever writes to the ResponseWriter. Buffered generously: a
+		// full Matter commissioning emits a dozen or so stages, and dropping one
+		// is better than blocking the adapter's event pump.
+		type stage struct{ name, message string }
+		stages := make(chan stage, 32)
+
+		type result struct {
+			d   *domain.Device
+			err error
+		}
+		done := make(chan result, 1)
+		go func() {
+			d, err := svc.Commission(ctx,
+				domain.TransportKind(req.Transport),
+				ports.CommissionRequest{
+					Payload:  req.Payload,
+					WifiSSID: req.WifiSSID,
+					WifiCred: req.WifiCred,
+					Extra:    req.Extra,
+					Progress: func(name, message string) {
+						select {
+						case stages <- stage{name, message}:
+						default: // stream consumer is behind; progress is cosmetic
+						}
+					},
+				},
+				req.Name,
+				domain.DeviceType(req.Type),
+			)
+			done <- result{d, err}
+		}()
+
+		for {
+			select {
+			case s := <-stages:
+				// "done" is reserved for the frame carrying the device — the
+				// frontend treats it as terminal.
+				if s.name == "done" {
+					continue
+				}
+				emit(map[string]any{"stage": s.name, "message": s.message})
+			case res := <-done:
+				if res.err != nil {
+					// Attach the transport's error category so the UI can show a
+					// sentence a person can act on instead of a wrapped Go error.
+					// Sidecar plugins surface sidecar.Error; anything else comes
+					// through with just the message, which is still useful.
+					frame := map[string]any{"stage": "error", "message": res.err.Error()}
+					if code := sidecar.CodeOf(res.err); code != "" {
+						frame["kind"] = string(code)
+						frame["retryable"] = sidecar.IsRetryable(res.err)
+					}
+					emit(frame)
+					return
+				}
+				persist(res.d)
+				emit(map[string]any{"stage": "done", "device": res.d})
+				return
+			case <-ctx.Done():
+				emit(map[string]any{"stage": "error", "message": "timeout"})
+				return
+			}
+		}
+	}
+}
+
+// handleDiscoverCommissionable streams devices that are advertising themselves
+// as ready to pair, as NDJSON, one JSON object per line — the shape the web app
+// already consumes.
+//
+// A found device still cannot be added without its setup code: the passcode is
+// never advertised. The list exists so the user can see what is pairable and
+// tell two identical lamps apart, then pair the one they picked by passing its
+// ref back as extra["matter.target"].
+func handleDiscoverCommissionable(svc *service.DeviceService) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		transport := r.URL.Query().Get("transport")
+		if transport == "" {
+			// Historical default — the UI has always assumed Matter when
+			// nothing is specified. Kept as a literal now that the core no
+			// longer knows about the matter transport at compile time.
+			transport = "matter"
+		}
+		window := 10 * time.Second
+		if raw := r.URL.Query().Get("timeout"); raw != "" {
+			parsed, err := time.ParseDuration(raw)
+			if err != nil || parsed <= 0 {
+				writeJSON(w, http.StatusBadRequest, map[string]any{"error": "invalid timeout"})
+				return
+			}
+			window = min(parsed, time.Minute)
+		}
+
+		// Outlive the scan itself so the sidecar's reply isn't cut short.
+		ctx, cancel := context.WithTimeout(r.Context(), window+30*time.Second)
+		defer cancel()
+
+		found, err := svc.DiscoverCommissionable(ctx, domain.TransportKind(transport), window)
+		if err != nil {
+			writeJSON(w, http.StatusBadRequest, map[string]any{"error": err.Error()})
+			return
+		}
+
+		w.Header().Set("Content-Type", "application/x-ndjson")
+		w.Header().Set("Cache-Control", "no-store")
+		flusher, _ := w.(http.Flusher)
+		enc := json.NewEncoder(w)
+
+		for d := range found {
+			line := map[string]any{
+				"ref":       d.Ref,
+				"name":      d.Name,
+				"transport": transport,
+			}
+			if d.Type != "" {
+				line["type"] = d.Type
+			}
+			if d.Discriminator != 0 {
+				line["discriminator"] = d.Discriminator
+			}
+			if d.VendorID != 0 {
+				line["vendor_id"] = d.VendorID
+			}
+			if d.ProductID != 0 {
+				line["product_id"] = d.ProductID
+			}
+			if err := enc.Encode(line); err != nil {
+				return // client hung up; the scan drains on its own
+			}
+			if flusher != nil {
+				flusher.Flush()
+			}
+		}
+	}
+}
+
+// handleCameraSession opens a WebRTC session with a camera and then streams the
+// camera's side of the handshake back as NDJSON.
+//
+// Only signalling passes through keystone. The video itself flows directly from
+// the camera to the browser's RTCPeerConnection — both are on the same LAN,
+// which is the case ICE is best at, and it keeps a media stack out of the
+// engine entirely.
+func handleCameraSession(svc *service.DeviceService) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		id := domain.DeviceID(r.PathValue("id"))
+		var req struct {
+			SDP string `json:"sdp"`
+		}
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil || req.SDP == "" {
+			writeJSON(w, http.StatusBadRequest, map[string]any{"error": "sdp offer is required"})
+			return
+		}
+
+		streamer, _, err := svc.CameraStreamer(id)
+		if err != nil {
+			writeJSON(w, http.StatusBadRequest, map[string]any{"error": err.Error()})
+			return
+		}
+
+		// Subscribe before offering: the camera may answer immediately, and a
+		// late subscription would miss it.
+		ctx := r.Context()
+		signals, err := streamer.Signals(ctx)
+		if err != nil {
+			writeJSON(w, http.StatusInternalServerError, map[string]any{"error": err.Error()})
+			return
+		}
+
+		session, err := streamer.StartStream(ctx, deviceRef(svc, id), req.SDP)
 		if err != nil {
 			writeJSON(w, http.StatusBadGateway, map[string]any{"error": err.Error()})
 			return
 		}
-		persist(d)
-		writeJSON(w, http.StatusOK, d)
+
+		w.Header().Set("Content-Type", "application/x-ndjson")
+		w.Header().Set("Cache-Control", "no-store")
+		flusher, _ := w.(http.Flusher)
+		enc := json.NewEncoder(w)
+		emit := func(v any) bool {
+			if err := enc.Encode(v); err != nil {
+				return false
+			}
+			if flusher != nil {
+				flusher.Flush()
+			}
+			return true
+		}
+
+		if !emit(map[string]any{"kind": "session", "session_id": session}) {
+			return
+		}
+
+		for {
+			select {
+			case <-ctx.Done():
+				// The viewer navigated away; tell the camera so it stops
+				// encoding for nobody.
+				stopCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+				_ = streamer.StopStream(stopCtx, session)
+				cancel()
+				return
+			case sig, ok := <-signals:
+				if !ok {
+					return
+				}
+				if sig.SessionID != session {
+					continue // another viewer's session
+				}
+				frame := map[string]any{"kind": sig.Kind, "session_id": sig.SessionID}
+				if sig.SDP != "" {
+					frame["sdp"] = sig.SDP
+				}
+				if len(sig.Candidates) > 0 {
+					frame["candidates"] = sig.Candidates
+				}
+				if sig.Reason != "" {
+					frame["reason"] = sig.Reason
+				}
+				if !emit(frame) || sig.Kind == "end" {
+					return
+				}
+			}
+		}
 	}
+}
+
+func handleCameraICE(svc *service.DeviceService) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		id := domain.DeviceID(r.PathValue("id"))
+		var req struct {
+			SessionID  int      `json:"session_id"`
+			Candidates []string `json:"candidates"`
+		}
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+			writeJSON(w, http.StatusBadRequest, map[string]any{"error": err.Error()})
+			return
+		}
+		streamer, _, err := svc.CameraStreamer(id)
+		if err != nil {
+			writeJSON(w, http.StatusBadRequest, map[string]any{"error": err.Error()})
+			return
+		}
+		ctx, cancel := context.WithTimeout(r.Context(), 10*time.Second)
+		defer cancel()
+		if err := streamer.AddCandidates(ctx, req.SessionID, req.Candidates); err != nil {
+			writeJSON(w, http.StatusBadGateway, map[string]any{"error": err.Error()})
+			return
+		}
+		writeJSON(w, http.StatusOK, map[string]any{"ok": true})
+	}
+}
+
+func handleCameraStop(svc *service.DeviceService) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		id := domain.DeviceID(r.PathValue("id"))
+		var req struct {
+			SessionID int `json:"session_id"`
+		}
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+			writeJSON(w, http.StatusBadRequest, map[string]any{"error": err.Error()})
+			return
+		}
+		streamer, _, err := svc.CameraStreamer(id)
+		if err != nil {
+			writeJSON(w, http.StatusBadRequest, map[string]any{"error": err.Error()})
+			return
+		}
+		ctx, cancel := context.WithTimeout(r.Context(), 10*time.Second)
+		defer cancel()
+		if err := streamer.StopStream(ctx, req.SessionID); err != nil {
+			writeJSON(w, http.StatusBadGateway, map[string]any{"error": err.Error()})
+			return
+		}
+		writeJSON(w, http.StatusOK, map[string]any{"ok": true})
+	}
+}
+
+// deviceRef resolves a device id to its transport ref; the camera handlers have
+// already validated the device, so a miss here is impossible in practice.
+func deviceRef(svc *service.DeviceService, id domain.DeviceID) domain.TransportRef {
+	if d, err := svc.Get(id); err == nil {
+		return d.TransportRef
+	}
+	return ""
 }
 
 func handleSyncFromAdapters(svc *service.DeviceService, persist func(*domain.Device)) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		ctx, cancel := context.WithTimeout(r.Context(), 30*time.Second)
 		defer cancel()
-		added, err := svc.SyncFromAdapters(ctx)
+		added, updated, err := svc.SyncFromAdapters(ctx)
 		for _, d := range added {
 			persist(d)
 		}
+		for _, d := range updated {
+			persist(d)
+		}
 		if err != nil {
-			writeJSON(w, http.StatusBadGateway, map[string]any{"added": added, "error": err.Error()})
+			writeJSON(w, http.StatusBadGateway, map[string]any{"added": added, "updated": updated, "error": err.Error()})
 			return
 		}
-		writeJSON(w, http.StatusOK, map[string]any{"added": added})
+		writeJSON(w, http.StatusOK, map[string]any{"added": added, "updated": updated})
 	}
 }
 
@@ -414,16 +785,23 @@ func handleDeleteDevice(svc *service.DeviceService, repo deviceDeleter) http.Han
 		id := domain.DeviceID(r.PathValue("id"))
 		ctx, cancel := context.WithTimeout(r.Context(), 30*time.Second)
 		defer cancel()
-		if err := svc.Decommission(ctx, id); err != nil {
-			writeJSON(w, http.StatusBadGateway, map[string]any{"error": err.Error()})
-			return
+
+		// Delete is best-effort on both sides: the user asked for the device
+		// to be gone from the UI. If the transport peer has already vanished
+		// (fabric reset, device unplugged) or the disk write fails, we still
+		// tell the UI "ok" and surface warnings — otherwise an orphan can
+		// resurrect from devices.json on next boot.
+		adapterErr := svc.Decommission(ctx, id)
+		persistErr := repo.DeleteDevice(r.Context(), id)
+
+		resp := map[string]any{"ok": true}
+		if adapterErr != nil {
+			resp["adapter_warning"] = adapterErr.Error()
 		}
-		if err := repo.DeleteDevice(r.Context(), id); err != nil {
-			// Registry already dropped it — worth logging but not a client error.
-			writeJSON(w, http.StatusOK, map[string]any{"ok": true, "persist_warning": err.Error()})
-			return
+		if persistErr != nil {
+			resp["persist_warning"] = persistErr.Error()
 		}
-		writeJSON(w, http.StatusOK, map[string]any{"ok": true})
+		writeJSON(w, http.StatusOK, resp)
 	}
 }
 
@@ -531,25 +909,34 @@ func handleListRuns(eng *rules.Engine) http.HandlerFunc {
 	}
 }
 
+// transportKindFromManifest pulls the transport identifier from a plugin's
+// declared capabilities. The convention is exactly one "transport.<kind>"
+// entry — a plugin that advertises none has nothing to plug into the
+// adapter surface (it must be a pure service plugin), and one that
+// advertises several would leave the core guessing which one is primary.
+func transportKindFromManifest(mf *plugin.Manifest) (domain.TransportKind, error) {
+	if mf == nil {
+		return "", fmt.Errorf("nil manifest")
+	}
+	var found string
+	for _, cap := range mf.Spec.Capabilities {
+		if !strings.HasPrefix(cap, "transport.") {
+			continue
+		}
+		if found != "" {
+			return "", fmt.Errorf("manifest declares multiple transport capabilities: %s and %s", found, cap)
+		}
+		found = cap
+	}
+	if found == "" {
+		return "", fmt.Errorf("manifest has no transport.* capability")
+	}
+	return domain.TransportKind(strings.TrimPrefix(found, "transport.")), nil
+}
+
 func writeJSON(w http.ResponseWriter, status int, v any) {
 	w.Header().Set("content-type", "application/json")
 	w.WriteHeader(status)
 	_ = json.NewEncoder(w).Encode(v)
 }
 
-// parseMatterURL accepts either a bare host:port or a full ws:// URL and
-// returns a matter.Config the adapter can dial.
-func parseMatterURL(raw string) (matter.Config, error) {
-	s := strings.TrimSpace(raw)
-	s = strings.TrimPrefix(s, "ws://")
-	s = strings.TrimPrefix(s, "wss://")
-	host, portStr, ok := strings.Cut(s, ":")
-	if !ok || host == "" || portStr == "" {
-		return matter.Config{}, fmt.Errorf("expected host:port or ws://host:port, got %q", raw)
-	}
-	var port int
-	if _, err := fmt.Sscanf(portStr, "%d", &port); err != nil || port <= 0 {
-		return matter.Config{}, fmt.Errorf("invalid port in %q", raw)
-	}
-	return matter.Config{Host: host, Port: port}, nil
-}

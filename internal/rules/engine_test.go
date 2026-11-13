@@ -9,7 +9,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/kliuchnikovv/keystone/internal/domain"
+	"github.com/kliuchnikovv/keystone-go/internal/domain"
 )
 
 // mockRepo satisfies rules.RuleRepository in tests without touching disk.

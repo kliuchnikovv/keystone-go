@@ -5,7 +5,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/kliuchnikovv/keystone/internal/domain"
+	"github.com/kliuchnikovv/keystone-go/internal/domain"
 )
 
 // ErrNotFound is returned when a device is not present in the registry.
@@ -80,6 +80,53 @@ func (r *Registry) List() []*domain.Device {
 		out = append(out, &cp)
 	}
 	return out
+}
+
+// UpdateDiscoveryInfo refreshes the discovery-derived fields (Features, Type,
+// Manufacturer, Model) on an already-known device. Name is preserved because
+// the user may have renamed the device. Returns true if the device existed
+// and something actually changed.
+func (r *Registry) UpdateDiscoveryInfo(id domain.DeviceID, deviceType domain.DeviceType, manufacturer, model string, features []domain.Feature) bool {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
+	d, ok := r.devices[id]
+	if !ok {
+		return false
+	}
+	changed := false
+	if deviceType != "" && d.Type != deviceType {
+		d.Type = deviceType
+		changed = true
+	}
+	if manufacturer != "" && d.Manufacturer != manufacturer {
+		d.Manufacturer = manufacturer
+		changed = true
+	}
+	if model != "" && d.Model != model {
+		d.Model = model
+		changed = true
+	}
+	if len(features) > 0 && !featuresEqual(d.Features, features) {
+		d.Features = features
+		changed = true
+	}
+	if changed {
+		d.UpdatedAt = time.Now().UTC()
+	}
+	return changed
+}
+
+func featuresEqual(a, b []domain.Feature) bool {
+	if len(a) != len(b) {
+		return false
+	}
+	for i := range a {
+		if a[i].Key != b[i].Key {
+			return false
+		}
+	}
+	return true
 }
 
 // Remove deletes the device and any state associated with it.
